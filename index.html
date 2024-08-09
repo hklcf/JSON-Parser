@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Parser</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.6.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code&display=swap');
+
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #333333;
+            --json-key-color: #92278f;
+            --json-string-color: #3ab54a;
+            --json-number-color: #25aae2;
+            --json-boolean-color: #f98280;
+            --json-null-color: #f1592a;
+            --json-mark-color: #8c8c8c;
+            --border-color: #dee2e6;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #1e1e1e;
+            --text-color: #ffffff;
+            --json-key-color: #c792ea;
+            --json-string-color: #9ccc65;
+            --json-number-color: #64b5f6;
+            --json-boolean-color: #ff8a65;
+            --json-null-color: #ffd54f;
+            --json-mark-color: #bbbbbb;
+            --border-color: #444444;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s ease, color 0.3s ease;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .json-key { color: var(--json-key-color); }
+        .json-string { color: var(--json-string-color); }
+        .json-number { color: var(--json-number-color); }
+        .json-boolean { color: var(--json-boolean-color); }
+        .json-null { color: var(--json-null-color); }
+        .json-mark { color: var(--json-mark-color); }
+
+        .tree-toggle {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .tree-toggle::before {
+            content: '\25BC';
+            display: inline-block;
+            margin-right: 5px;
+            transition: transform 0.3s;
+        }
+
+        .tree-toggle.collapsed::before {
+            transform: rotate(-90deg);
+        }
+
+        .json-content {
+            margin-bottom: 0;
+        }
+
+        #jsonInput, #jsonOutput {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+
+        #jsonOutput {
+            height: 100%;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .btn-action {
+            transition: all 0.3s ease;
+        }
+
+        .btn-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(50,50,93,.11), 0 1px 3px rgba(0,0,0,.08);
+        }
+
+        .custom-switch {
+            cursor: pointer;
+        }
+
+        .card-body {
+            height: 400px;
+            overflow: hidden;
+        }
+
+        json-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 5px;
+            color: white;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            z-index: 1000;
+        }
+
+        json-notification[show] {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row mb-4 align-items-center">
+            <div class="col">
+                <h1 class="mb-0">Modern JSON Parser</h1>
+            </div>
+            <div class="col-auto">
+                <div class="custom-switch form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="themeSwitch">
+                    <label class="form-check-label" for="themeSwitch">
+                        <i class="fas fa-moon"></i>
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0">Input JSON</h5>
+                    </div>
+                    <div class="card-body">
+                        <textarea id="jsonInput" class="form-control h-100" placeholder="Enter JSON here"></textarea>
+                    </div>
+                    <div class="card-footer">
+                        <button id="parseBtn" class="btn btn-primary btn-action"><i class="fas fa-code"></i> Parse</button>
+                        <button id="formatBtn" class="btn btn-secondary btn-action"><i class="fas fa-align-left"></i> Format</button>
+                        <button id="copyBtn" class="btn btn-info btn-action"><i class="fas fa-copy"></i> Copy</button>
+                        <button id="clearBtn" class="btn btn-warning btn-action"><i class="fas fa-trash"></i> Clear</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="card-title mb-0">Parsed JSON</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="jsonOutput"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <json-notification></json-notification>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        (function() {
+            class JSONParser {
+                parse(inputElem, outputElem, notificationElem) {
+                    try {
+                        const json = JSON.parse(inputElem.value);
+                        outputElem.innerHTML = this.createJSONTree(json);
+                        this.addToggleListeners();
+                        notificationElem.show('JSON parsed successfully', 'success');
+                        outputElem.scrollTop = 0;
+                    } catch (error) {
+                        outputElem.textContent = `Error: ${error.message}`;
+                        notificationElem.show(`Error: ${error.message}`, 'error');
+                    }
+                }
+
+                format(inputElem, notificationElem) {
+                    try {
+                        const json = JSON.parse(inputElem.value.trim());
+                        inputElem.value = JSON.stringify(json, null, 4);
+                        notificationElem.show('JSON formatted successfully', 'success');
+                    } catch (error) {
+                        notificationElem.show(`Error: ${error.message}`, 'error');
+                    }
+                }
+
+                async copy(inputElem, notificationElem) {
+                    this.format(inputElem, notificationElem);
+                    const textToCopy = inputElem.value;
+                    
+                    try {
+                        await navigator.clipboard.writeText(textToCopy);
+                        notificationElem.show('Formatted JSON copied to clipboard!', 'success');
+                    } catch (err) {
+                        console.warn('Clipboard API failed:', err);
+                        this.fallbackCopyTextToClipboard(textToCopy, notificationElem);
+                    }
+                }
+
+                fallbackCopyTextToClipboard(text, notificationElem) {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = text;
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    try {
+                        const successful = document.execCommand('copy');
+                        const msg = successful ? 'successful' : 'unsuccessful';
+                        console.log('Fallback: Copying text command was ' + msg);
+                        notificationElem.show('Formatted JSON copied to clipboard!', 'success');
+                    } catch (err) {
+                        console.error('Fallback: Oops, unable to copy', err);
+                        notificationElem.show('Failed to copy text. Please copy it manually.', 'error');
+                    }
+                    document.body.removeChild(textArea);
+                }
+
+                clear(inputElem, outputElem, notificationElem) {
+                    inputElem.value = '';
+                    outputElem.innerHTML = '';
+                    notificationElem.show('Input cleared', 'success');
+                }
+
+                createJSONTree(obj) {
+                    if (typeof obj !== 'object' || obj === null) {
+                        return this.formatValue(obj);
+                    }
+
+                    const isArray = Array.isArray(obj);
+                    let html = `<span class="tree-toggle">${isArray ? '[' : '{'}</span>`;
+                    html += '<ul class="list-unstyled ms-4 json-content">';
+
+                    Object.entries(obj).forEach(([key, value], index, entries) => {
+                        const isLast = index === entries.length - 1;
+                        html += '<li>';
+                        if (!isArray) {
+                            html += `<span class="json-key">"${key}"</span>: `;
+                        }
+                        html += typeof value === 'object' && value !== null
+                            ? this.createJSONTree(value)
+                            : this.formatValue(value);
+                        if (!isLast) {
+                            html += '<span class="json-mark">,</span>';
+                        }
+                        html += '</li>';
+                    });
+
+                    html += '</ul>';
+                    html += `<span class="json-mark">${isArray ? ']' : '}'}</span>`;
+                    return html;
+                }
+
+                formatValue(value) {
+                    if (typeof value === 'string') return `<span class="json-string">"${value}"</span>`;
+                    if (typeof value === 'number') return `<span class="json-number">${value}</span>`;
+                    if (typeof value === 'boolean') return `<span class="json-boolean">${value}</span>`;
+                    if (value === null) return `<span class="json-null">null</span>`;
+                    return value;
+                }
+
+                addToggleListeners() {
+                    document.querySelectorAll('.tree-toggle').forEach(toggle => {
+                        toggle.addEventListener('click', function() {
+                            this.classList.toggle('collapsed');
+                            const content = this.nextElementSibling;
+                            content.style.display = content.style.display === 'none' ? '' : 'none';
+                        });
+                    });
+                }
+            }
+
+            class ThemeManager {
+                constructor() {
+                    this.themeSwitch = document.getElementById('themeSwitch');
+                    this.themeSwitch.addEventListener('change', () => this.toggle());
+                    this.loadTheme();
+                }
+
+                toggle() {
+                    document.body.setAttribute('data-theme', this.themeSwitch.checked ? 'dark' : 'light');
+                    localStorage.setItem('theme', this.themeSwitch.checked ? 'dark' : 'light');
+                }
+
+                loadTheme() {
+                    const savedTheme = localStorage.getItem('theme');
+                    if (savedTheme) {
+                        this.themeSwitch.checked = savedTheme === 'dark';
+                        this.toggle();
+                    }
+                }
+            }
+
+            class JsonNotification extends HTMLElement {
+                constructor() {
+                    super();
+                    this.timeoutId = null;
+                }
+
+                show(message, type = 'success') {
+                    this.textContent = message;
+                    this.style.backgroundColor = type === 'success' ? '#28a745' : '#dc3545';
+                    this.setAttribute('show', '');
+                    
+                    if (this.timeoutId) {
+                        clearTimeout(this.timeoutId);
+                    }
+                    
+                    this.timeoutId = setTimeout(() => {
+                        this.removeAttribute('show');
+                    }, 3000);
+                }
+            }
+
+            customElements.define('json-notification', JsonNotification);
+
+            document.addEventListener('DOMContentLoaded', () => {
+                const parser = new JSONParser();
+                new ThemeManager();
+
+                const jsonInput = document.getElementById('jsonInput');
+                const jsonOutput = document.getElementById('jsonOutput');
+                const parseBtn = document.getElementById('parseBtn');
+                const formatBtn = document.getElementById('formatBtn');
+                const copyBtn = document.getElementById('copyBtn');
+                const clearBtn = document.getElementById('clearBtn');
+                const notification = document.querySelector('json-notification');
+
+                parseBtn.addEventListener('click', () => parser.parse(jsonInput, jsonOutput, notification));
+                formatBtn.addEventListener('click', () => parser.format(jsonInput, notification));
+                copyBtn.addEventListener('click', () => parser.copy(jsonInput, notification));
+                clearBtn.addEventListener('click', () => parser.clear(jsonInput, jsonOutput, notification));
+
+                document.addEventListener('keydown', (e) => {
+                    if (e.ctrlKey || e.metaKey) {
+                        switch(e.key) {
+                            case 'Enter': parser.parse(jsonInput, jsonOutput, notification); e.preventDefault(); break;
+                            case 'b': parser.format(jsonInput, notification); e.preventDefault(); break;
+                            case 'c': parser.copy(jsonInput, notification); e.preventDefault(); break;
+                            case 'Delete': parser.clear(jsonInput, jsonOutput, notification); e.preventDefault(); break;
+                        }
+                    }
+                });
+
+                const exampleJSON = {
+                    "name": "John Doe",
+                    "age": 30,
+                    "city": "New York",
+                    "hobbies": ["reading", "swimming"],
+                    "address": {
+                        "street": "123 Main St",
+                        "zip": "10001"
+                    }
+                };
+                jsonInput.value = JSON.stringify(exampleJSON, null, 4);
+            });
+        })();
+    </script>
+</body>
+</html>
