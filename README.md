@@ -11,6 +11,9 @@ A modern, browser-based JSON Parser with syntax highlighting, formatting, and da
 - **Keyboard Shortcuts**: Enhance productivity with quick commands.
 - **Error Handling**: Clear error messages for invalid JSON.
 
+## Demo
+[Live Demo](https://hklcf.github.io/json-parser/)
+
 ## Usage
 1. Open `index.html` in your web browser.
 2. Enter or paste your JSON into the input area.
